@@ -6,10 +6,15 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "import:pinandpop": "node --env-file=.env.local scripts/import-pinandpop.mjs",
+    "test:import": "node --test scripts/pinandpop-core.test.mjs",
+    "test:personal": "node --experimental-strip-types --test scripts/personal-data.test.mjs",
+    "test:auth": "node --experimental-strip-types --test scripts/password-session.test.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.118.0",
+    "ai": "^7.0.143",
     "next": "16.4.2",
     "react": "19.3.0",
     "react-dom": "19.3.0"

@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {passwordHash,passwordMatches,makeSession,validSession,SESSION_SECONDS} from '../lib/password-session.ts';
+const hash=passwordHash('test-only-password','00112233445566778899aabbccddeeff');const secret='unit-test-session-secret-that-is-long-enough';const now=1700000000000;
+test('password hash accepts only the correct password',()=>{assert.equal(passwordMatches('test-only-password',hash),true);assert.equal(passwordMatches('wrong',hash),false);assert.equal(passwordMatches('a'.repeat(300),hash),false);});
+test('session rejects tampering, expiry, key and password rotations',()=>{const token=makeSession(secret,hash,now);assert.equal(validSession(token,secret,hash,now),true);assert.equal(validSession(token+'x',secret,hash,now),false);assert.equal(validSession(token,secret,hash,now+(SESSION_SECONDS+1)*1000),false);assert.equal(validSession(token,secret+'changed',hash,now),false);assert.equal(validSession(token,secret,passwordHash('changed-password'),now),false);});
+test('malformed and unsigned sessions cannot authenticate',()=>{for(const token of ['','fake','e30.fake','one.two.three'])assert.equal(validSession(token,secret,hash,now),false);});

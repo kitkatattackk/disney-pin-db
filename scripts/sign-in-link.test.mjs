@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseSignInInput} from '../lib/sign-in-link.ts';
+test('recovers an already-verified localhost redirect without fetching it',()=>{assert.deepEqual(parseSignInInput('http://localhost:3000/#access_token=test-access&refresh_token=test-refresh&type=signup'),{kind:'session',access_token:'test-access',refresh_token:'test-refresh'});});
+test('accepts Safari addresses without the displayed scheme',()=>{assert.equal(parseSignInInput('localhost:3000/#access_token=test-access&refresh_token=test-refresh').kind,'session');});
+test('still accepts original email token hashes and numeric OTPs',()=>{assert.deepEqual(parseSignInInput('https://example.supabase.co/auth/v1/verify?token=test-hash&type=signup'),{kind:'token_hash',token_hash:'test-hash'});assert.deepEqual(parseSignInInput('123456'),{kind:'code',token:'123456'});});
+test('reports expired links and incomplete fragments without echoing secrets',()=>{assert.throws(()=>parseSignInInput('http://localhost:3000/#error=access_denied&error_description=expired'),/expired/);assert.throws(()=>parseSignInInput('http://localhost:3000/#access_token=test-access'),/entire sign-in URL/);});

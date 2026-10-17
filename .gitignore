@@ -39,3 +39,9 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Resumable import state and cached API responses
+/.imports/
+
+# Safe configuration template
+!.env.example

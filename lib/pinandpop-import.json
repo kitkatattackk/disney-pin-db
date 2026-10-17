@@ -1,0 +1,15 @@
+{
+  "source": "Pin & Pop",
+  "status": "credit_exhausted",
+  "updatedAt": "2026-10-17T15:41:07.723Z",
+  "requestsUsed": 989,
+  "maxRequests": 1000,
+  "estimatedCostUsd": 4.945,
+  "budgetUsd": 5,
+  "pins": 16287,
+  "images": 17753,
+  "pinsWithImages": 12398,
+  "failedRequests": 2,
+  "stopReason": "Brave returned HTTP 402; no further requests will be sent.",
+  "imageStorage": "Original image URLs; files remain on the source CDN."
+}

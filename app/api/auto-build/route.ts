@@ -11,7 +11,7 @@ export async function POST() {
   const targetSite = "disneypinsblog.com"; 
   
   const characterSeeds = [
-    'Mickey Mouse Sorcerer Hat', 
+    'Mickey Mouse Sorcerer', 
     'Stitch Loungefly Stained Glass', 
     'Haunted Mansion Limited Edition'
   ];
@@ -21,8 +21,8 @@ export async function POST() {
 
   try {
     for (const character of characterSeeds) {
-      // 1. Query Brave Web Search
-      const textQuery = `site:${targetSite} "${character}" "retail price"`;
+      // 1. Gather text details from Brave Web Search
+      const textQuery = `site:${targetSite} "${character}"`;
       const textRes = await fetch(
         `https://brave.com{encodeURIComponent(textQuery)}`,
         { headers: { 'X-Subscription-Token': BRAVE_API_KEY!, 'Accept': 'application/json' } }
@@ -30,18 +30,18 @@ export async function POST() {
       const textData = await textRes.json();
       const resultsArray = textData.web?.results || [];
       
-      // Grab the single first search result object safely
+      // FIX: Explicitly target index position [0] for the top object match
       const topMatch = resultsArray.length > 0 ? resultsArray[0] : null;
 
       if (!topMatch) {
-        logHistory.push(`Skipped "${character}": No matching listings found on ${targetSite}`);
+        logHistory.push(`Skipped "${character}": No web references found on ${targetSite}`);
         continue;
       }
 
       const cleanName = topMatch.title.replace(/<\/?[^>]+(>|\$)/g, "");
       const cleanNotes = topMatch.description.replace(/<\/?[^>]+(>|\$)/g, "");
 
-      // 2. Safely insert the main pin attributes into Supabase
+      // 2. Insert primary row into Supabase
       const { data: newPin, error: pinError } = await supabase
         .from('pins')
         .insert([
@@ -55,15 +55,15 @@ export async function POST() {
         .single();
 
       if (pinError || !newPin) {
-        logHistory.push(`Database error on "${cleanName}": ${pinError?.message || 'Could not select row'}`);
+        logHistory.push(`Database error on "${cleanName}": ${pinError?.message || 'Insert rejected'}`);
         continue;
       }
       
       addedCount++;
-      logHistory.push(`Success: Created database entry for "${cleanName}"`);
+      logHistory.push(`Success: Saved pin data for "${cleanName}"`);
 
-      // 3. Query Brave Image Search
-      const imgQuery = `site:${targetSite} "${character}" pin`;
+      // 3. Gather photos across broad web index
+      const imgQuery = `"${character}" disney trading pin`;
       const imgRes = await fetch(
         `https://brave.com{encodeURIComponent(imgQuery)}&count=2`,
         { headers: { 'X-Subscription-Token': BRAVE_API_KEY!, 'Accept': 'application/json' } }
@@ -86,13 +86,12 @@ export async function POST() {
           ]);
       }
       
-      // Prevent API rate limit caps
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Data sync finished. Created ${addedCount} total pin profiles with photos!`,
+      message: `Database sync complete! Created ${addedCount} pin profiles with photo references.`,
       details: logHistory
     });
   } catch (error: any) {

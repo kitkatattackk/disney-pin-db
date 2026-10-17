@@ -1,7 +1,6 @@
 'use client';
 
 import { useState } from 'react';
-import { supabase } from '@/lib/supabaseClient';
 
 export default function Home() {
   const [searchQuery, setSearchQuery] = useState('');
@@ -9,6 +8,7 @@ export default function Home() {
   const [autoBuilding, setAutoBuilding] = useState(false);
   const [pins, setPins] = useState<any[]>([]);
   const [statusMessage, setStatusMessage] = useState('');
+  const [executionLogs, setExecutionLogs] = useState<string[]>([]);
 
   async function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -33,16 +33,19 @@ export default function Home() {
     }
   }
 
-  // Trigger the background batch-loader
   async function triggerAutoBuild() {
     setAutoBuilding(true);
-    setStatusMessage('🚀 Auto-Build Pipeline Active! Brave Search is harvesting pin data rows in the background...');
+    setExecutionLogs([]);
+    setStatusMessage('🚀 Auto-Build Pipeline Active! Brave Search is crawling disneypinsblog.com...');
     try {
       const res = await fetch('/api/auto-build', { method: 'POST' });
       const data = await res.json();
-      setStatusMessage(data.message || 'Auto-build engine finished processing.');
+      setStatusMessage(data.message || 'Auto-build processing complete.');
+      if (data.details) {
+        setExecutionLogs(data.details);
+      }
     } catch (err) {
-      setStatusMessage('Automation job failed to complete.');
+      setStatusMessage('Automation job crashed or timed out.');
     } finally {
       setAutoBuilding(false);
     }
@@ -77,8 +80,18 @@ export default function Home() {
         </form>
 
         {statusMessage && (
-          <div className="bg-slate-800 border-l-4 border-purple-500 text-slate-300 p-3 mb-6 rounded text-sm animate-pulse">
+          <div className="bg-slate-800 border-l-4 border-purple-500 text-slate-300 p-3 mb-6 rounded text-sm">
             {statusMessage}
+          </div>
+        )}
+
+        {/* Real-time Processing Console Log Panel */}
+        {executionLogs.length > 0 && (
+          <div className="bg-slate-950 border border-slate-800 rounded p-4 mb-6 font-mono text-xs text-emerald-400 space-y-1 max-h-60 overflow-y-auto shadow-inner">
+            <div className="text-slate-500 border-b border-slate-800 pb-1 mb-2 font-sans font-semibold">🖥️ Engine Sync Execution History:</div>
+            {executionLogs.map((log, index) => (
+              <div key={index}>&gt; {log}</div>
+            ))}
           </div>
         )}
       </div>

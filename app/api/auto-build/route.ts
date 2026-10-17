@@ -10,7 +10,6 @@ export async function POST() {
   const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
   const targetSite = "disneypinsblog.com"; 
   
-  // Cleaned test seed keywords
   const characterSeeds = [
     'Mickey Mouse Sorcerer Hat', 
     'Stitch Loungefly Stained Glass', 
@@ -22,7 +21,7 @@ export async function POST() {
 
   try {
     for (const character of characterSeeds) {
-      // Stage 1: Search textual attributes
+      // 1. Query Brave Web Search
       const textQuery = `site:${targetSite} "${character}" "retail price"`;
       const textRes = await fetch(
         `https://brave.com{encodeURIComponent(textQuery)}`,
@@ -31,18 +30,18 @@ export async function POST() {
       const textData = await textRes.json();
       const resultsArray = textData.web?.results || [];
       
-      // Grab the first object inside the search response safely
+      // Grab the single first search result object safely
       const topMatch = resultsArray.length > 0 ? resultsArray[0] : null;
 
       if (!topMatch) {
-        logHistory.push(`Skipped "${character}": No web references found on ${targetSite}`);
+        logHistory.push(`Skipped "${character}": No matching listings found on ${targetSite}`);
         continue;
       }
 
       const cleanName = topMatch.title.replace(/<\/?[^>]+(>|\$)/g, "");
       const cleanNotes = topMatch.description.replace(/<\/?[^>]+(>|\$)/g, "");
 
-      // Insert primary pin parameters
+      // 2. Safely insert the main pin attributes into Supabase
       const { data: newPin, error: pinError } = await supabase
         .from('pins')
         .insert([
@@ -56,14 +55,14 @@ export async function POST() {
         .single();
 
       if (pinError || !newPin) {
-        logHistory.push(`Database error on "${cleanName}": ${pinError?.message}`);
+        logHistory.push(`Database error on "${cleanName}": ${pinError?.message || 'Could not select row'}`);
         continue;
       }
       
       addedCount++;
-      logHistory.push(`Successfully created pin entry for: "${cleanName}"`);
+      logHistory.push(`Success: Created database entry for "${cleanName}"`);
 
-      // Stage 2: Target search images
+      // 3. Query Brave Image Search
       const imgQuery = `site:${targetSite} "${character}" pin`;
       const imgRes = await fetch(
         `https://brave.com{encodeURIComponent(imgQuery)}&count=2`,
@@ -87,6 +86,7 @@ export async function POST() {
           ]);
       }
       
+      // Prevent API rate limit caps
       await new Promise(resolve => setTimeout(resolve, 1000));
     }
 

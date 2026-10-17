@@ -10,49 +10,60 @@ export async function POST() {
   const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
   const targetSite = "disneypinsblog.com"; 
   
-  // Specific targets to trigger the dual engine
+  // Cleaned test seed keywords
   const characterSeeds = [
     'Mickey Mouse Sorcerer Hat', 
     'Stitch Loungefly Stained Glass', 
-    'Haunted Mansion Limited Edition', 
-    'Zero Nightmare Before Christmas'
+    'Haunted Mansion Limited Edition'
   ];
 
   let addedCount = 0;
+  let logHistory: string[] = [];
 
   try {
     for (const character of characterSeeds) {
-      // --- STAGE 1: GATHER DETAILS FROM WEB SEARCH ---
+      // Stage 1: Search textual attributes
       const textQuery = `site:${targetSite} "${character}" "retail price"`;
       const textRes = await fetch(
         `https://brave.com{encodeURIComponent(textQuery)}`,
         { headers: { 'X-Subscription-Token': BRAVE_API_KEY!, 'Accept': 'application/json' } }
       );
       const textData = await textRes.json();
-      const topMatch = textData.web?.results?.[0]; // Grab the best matching structural text page
+      const resultsArray = textData.web?.results || [];
+      
+      // Grab the first object inside the search response safely
+      const topMatch = resultsArray.length > 0 ? resultsArray[0] : null;
 
-      if (!topMatch) continue;
+      if (!topMatch) {
+        logHistory.push(`Skipped "${character}": No web references found on ${targetSite}`);
+        continue;
+      }
 
       const cleanName = topMatch.title.replace(/<\/?[^>]+(>|\$)/g, "");
       const cleanNotes = topMatch.description.replace(/<\/?[^>]+(>|\$)/g, "");
 
-      // Insert primary pin attributes into Supabase
+      // Insert primary pin parameters
       const { data: newPin, error: pinError } = await supabase
         .from('pins')
         .insert([
           {
             name: cleanName,
-            notes: `Auto-Harvested Details: ${cleanNotes}`,
+            notes: `Auto-Harvested: ${cleanNotes}`,
             release_year: 2026
           }
         ])
         .select()
         .single();
 
-      if (pinError || !newPin) continue;
+      if (pinError || !newPin) {
+        logHistory.push(`Database error on "${cleanName}": ${pinError?.message}`);
+        continue;
+      }
+      
       addedCount++;
+      logHistory.push(`Successfully created pin entry for: "${cleanName}"`);
 
-      // --- STAGE 2: GATHER VISUAL IMAGES FROM IMAGE SEARCH ---
+      // Stage 2: Target search images
       const imgQuery = `site:${targetSite} "${character}" pin`;
       const imgRes = await fetch(
         `https://brave.com{encodeURIComponent(imgQuery)}&count=2`,
@@ -61,7 +72,6 @@ export async function POST() {
       const imgData = await imgRes.json();
       const foundImages = imgData.results || [];
 
-      // Loop through pictures found and link them directly to our fresh pin entry
       for (const img of foundImages) {
         const imgUrl = img.properties?.url;
         if (!imgUrl) continue;
@@ -72,20 +82,20 @@ export async function POST() {
             {
               pin_id: newPin.id,
               storage_url: imgUrl,
-              is_primary: foundImages.indexOf(img) === 0 // Mark the first image as primary
+              is_primary: foundImages.indexOf(img) === 0
             }
           ]);
       }
       
-      // Delay to respect rate limits
-      await new Promise(resolve => setTimeout(resolve, 800));
+      await new Promise(resolve => setTimeout(resolve, 1000));
     }
 
     return NextResponse.json({ 
       success: true, 
-      message: `Success! Fully mapped ${addedCount} pins with complete descriptions and photos from ${targetSite}.` 
+      message: `Data sync finished. Created ${addedCount} total pin profiles with photos!`,
+      details: logHistory
     });
   } catch (error: any) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: error.message, details: logHistory }, { status: 500 });
   }
 }

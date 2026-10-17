@@ -30,7 +30,7 @@ export async function POST() {
       const textData = await textRes.json();
       const resultsArray = textData.web?.results || [];
       
-      // FIX: Explicitly target index position [0] for the top object match
+      // FIX: Explicitly pull out index item 0 from the array pool
       const topMatch = resultsArray.length > 0 ? resultsArray[0] : null;
 
       if (!topMatch) {
@@ -62,7 +62,7 @@ export async function POST() {
       addedCount++;
       logHistory.push(`Success: Saved pin data for "${cleanName}"`);
 
-      // 3. Gather photos across broad web index
+      // 3. Gather photos across the broad web index
       const imgQuery = `"${character}" disney trading pin`;
       const imgRes = await fetch(
         `https://brave.com{encodeURIComponent(imgQuery)}&count=2`,

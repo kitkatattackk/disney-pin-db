@@ -8,52 +8,83 @@ const supabase = createClient(
 
 export async function POST() {
   const BRAVE_API_KEY = process.env.BRAVE_API_KEY;
+  const targetSite = "disneypinsblog.com"; 
   
-  // A seed list of categories to kick off automated batch searching
-  const designSeeds = [
-    'Mickey Mouse 2025 open edition',
-    'Stitch Disney trading pin',
-    'Lion King limited edition pin',
-    'Aladdin genie disney pin',
-    'Disneyland haunted mansion pin'
+  // Specific targets to trigger the dual engine
+  const characterSeeds = [
+    'Mickey Mouse Sorcerer Hat', 
+    'Stitch Loungefly Stained Glass', 
+    'Haunted Mansion Limited Edition', 
+    'Zero Nightmare Before Christmas'
   ];
 
   let addedCount = 0;
 
   try {
-    for (const seed of designSeeds) {
-      // 1. Ask Brave to find pin references matching our keyword
-      const searchRes = await fetch(
-        `https://brave.com{encodeURIComponent(seed)}+retail+price`,
+    for (const character of characterSeeds) {
+      // --- STAGE 1: GATHER DETAILS FROM WEB SEARCH ---
+      const textQuery = `site:${targetSite} "${character}" "retail price"`;
+      const textRes = await fetch(
+        `https://brave.com{encodeURIComponent(textQuery)}`,
         { headers: { 'X-Subscription-Token': BRAVE_API_KEY!, 'Accept': 'application/json' } }
       );
-      const searchData = await searchRes.json();
-      const webResults = searchData.web?.results || [];
+      const textData = await textRes.json();
+      const topMatch = textData.web?.results?.[0]; // Grab the best matching structural text page
 
-      // 2. Loop through the web matches found by Brave and insert them directly into Supabase
-      for (const result of webResults.slice(0, 3)) { // Limit to top 3 matches per seed to protect API limits
-        // Strip out HTML formatting tags like <b> from Brave's highlights
-        const cleanName = result.title.replace(/<\/?[^>]+(>|\$)/g, "");
-        const cleanNotes = result.description.replace(/<\/?[^>]+(>|\$)/g, "");
+      if (!topMatch) continue;
 
-        const { error } = await supabase
-          .from('pins')
+      const cleanName = topMatch.title.replace(/<\/?[^>]+(>|\$)/g, "");
+      const cleanNotes = topMatch.description.replace(/<\/?[^>]+(>|\$)/g, "");
+
+      // Insert primary pin attributes into Supabase
+      const { data: newPin, error: pinError } = await supabase
+        .from('pins')
+        .insert([
+          {
+            name: cleanName,
+            notes: `Auto-Harvested Details: ${cleanNotes}`,
+            release_year: 2026
+          }
+        ])
+        .select()
+        .single();
+
+      if (pinError || !newPin) continue;
+      addedCount++;
+
+      // --- STAGE 2: GATHER VISUAL IMAGES FROM IMAGE SEARCH ---
+      const imgQuery = `site:${targetSite} "${character}" pin`;
+      const imgRes = await fetch(
+        `https://brave.com{encodeURIComponent(imgQuery)}&count=2`,
+        { headers: { 'X-Subscription-Token': BRAVE_API_KEY!, 'Accept': 'application/json' } }
+      );
+      const imgData = await imgRes.json();
+      const foundImages = imgData.results || [];
+
+      // Loop through pictures found and link them directly to our fresh pin entry
+      for (const img of foundImages) {
+        const imgUrl = img.properties?.url;
+        if (!imgUrl) continue;
+
+        await supabase
+          .from('pin_images')
           .insert([
             {
-              name: cleanName,
-              notes: `Auto-generated via Brave pipeline scraper: ${cleanNotes}`,
-              release_year: 2026
+              pin_id: newPin.id,
+              storage_url: imgUrl,
+              is_primary: foundImages.indexOf(img) === 0 // Mark the first image as primary
             }
           ]);
-        
-        if (!error) addedCount++;
       }
       
-      // Minor delay to respect rate limiting rules
-      await new Promise(resolve => setTimeout(resolve, 500));
+      // Delay to respect rate limits
+      await new Promise(resolve => setTimeout(resolve, 800));
     }
 
-    return NextResponse.json({ success: true, message: `Automation complete! Auto-built ${addedCount} pin data records.` });
+    return NextResponse.json({ 
+      success: true, 
+      message: `Success! Fully mapped ${addedCount} pins with complete descriptions and photos from ${targetSite}.` 
+    });
   } catch (error: any) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
